@@ -9,7 +9,7 @@ SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CRON_FILE="/etc/cron.d/librenms-cisco-wlc-ap-monitor"
 
 if [[ $EUID -ne 0 ]]; then
-  echo "Run this installer with sudo: sudo ./install.sh" >&2
+  echo "Run this installer with sudo: sudo bash install.sh" >&2
   exit 1
 fi
 
@@ -50,7 +50,7 @@ chown root:root "$CRON_FILE"
 chmod 0644 "$CRON_FILE"
 
 run_lnms "php lnms cisco-wlc-ap:poll --no-interaction"
-"$PLUGIN_DIR/tools/healthcheck.sh" || true
+bash "$PLUGIN_DIR/tools/healthcheck.sh" || true
 
 echo
 echo "Installation completed."
