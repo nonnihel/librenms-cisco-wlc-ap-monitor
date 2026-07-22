@@ -7,7 +7,7 @@ PLUGIN_DIR="$LIBRENMS_BASE/local-plugins/librenms-cisco-wlc-ap-monitor"
 SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 if [[ $EUID -ne 0 ]]; then
-  echo "Run with sudo: sudo ./update.sh" >&2
+  echo "Run with sudo: sudo bash update.sh" >&2
   exit 1
 fi
 
@@ -26,5 +26,5 @@ install -d -o root -g root -m 0755 "$NAGIOS_DIR"
 install -o root -g root -m 0755 "$PLUGIN_DIR/scripts/check_cisco_wlc_ap_monitor.php" "$NAGIOS_DIR/check_cisco_wlc_ap_monitor.php"
 ln -sfn "$NAGIOS_DIR/check_cisco_wlc_ap_monitor.php" "$NAGIOS_DIR/check_cisco_wlc_ap_monitor"
 
-"$PLUGIN_DIR/tools/ensure-plugin.sh"
-"$PLUGIN_DIR/tools/healthcheck.sh"
+bash "$PLUGIN_DIR/tools/ensure-plugin.sh"
+bash "$PLUGIN_DIR/tools/healthcheck.sh"
