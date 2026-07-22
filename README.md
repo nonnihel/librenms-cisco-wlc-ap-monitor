@@ -52,7 +52,7 @@ The project was developed and tested with LibreNMS 26.7/26.8 development builds,
 cd /opt
 sudo git clone https://github.com/nonnihel/librenms-cisco-wlc-ap-monitor.git
 cd librenms-cisco-wlc-ap-monitor
-sudo ./install.sh
+sudo bash install.sh
 ```
 
 The installer copies the plugin to:
@@ -134,6 +134,7 @@ Deleting an AP removes its plugin history. If the AP is still online, it will be
 - [Updating LibreNMS and the plugin](docs/UPGRADE.md)
 - [Moving to a new LibreNMS server](docs/MIGRATION.md)
 - [Troubleshooting](docs/TROUBLESHOOTING.md)
+- [GitHub publishing and releases](docs/GITHUB.md)
 - [Contributing](CONTRIBUTING.md)
 - [Security policy](SECURITY.md)
 
