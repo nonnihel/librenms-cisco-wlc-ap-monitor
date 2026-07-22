@@ -20,7 +20,7 @@ sudo mysql librenms -e "SELECT device_id,name,radio_number,deleted FROM access_p
 cd /opt
 sudo git clone https://github.com/nonnihel/librenms-cisco-wlc-ap-monitor.git
 cd librenms-cisco-wlc-ap-monitor
-sudo ./install.sh
+sudo bash install.sh
 ```
 
 The installer:
@@ -39,7 +39,7 @@ The installer:
 cd /opt/librenms
 sudo -u librenms -H php artisan route:list | grep cisco-wlc-ap-monitor
 sudo -u librenms -H php lnms cisco-wlc-ap:poll --no-interaction
-sudo /opt/librenms/local-plugins/librenms-cisco-wlc-ap-monitor/tools/healthcheck.sh
+sudo bash /opt/librenms/local-plugins/librenms-cisco-wlc-ap-monitor/tools/healthcheck.sh
 ```
 
 Expected routes:
