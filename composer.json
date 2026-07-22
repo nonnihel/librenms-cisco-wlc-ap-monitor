@@ -1,0 +1,25 @@
+{
+  "name": "averna/librenms-cisco-wlc-ap-monitor",
+  "description": "Cisco WLC access-point state tracking for LibreNMS, with retire/ignore/delete controls and a native service check.",
+  "type": "library",
+  "license": "GPL-3.0-or-later",
+  "require": {
+    "php": ">=8.2",
+    "illuminate/support": "*",
+    "illuminate/database": "*",
+    "illuminate/routing": "*",
+    "symfony/process": "*"
+  },
+  "autoload": {
+    "psr-4": {
+      "Averna\\CiscoWlcApMonitor\\": "src/"
+    }
+  },
+  "extra": {
+    "laravel": {
+      "providers": [
+        "Averna\\CiscoWlcApMonitor\\CiscoWlcApMonitorServiceProvider"
+      ]
+    }
+  }
+}
