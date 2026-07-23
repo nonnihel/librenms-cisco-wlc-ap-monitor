@@ -26,6 +26,7 @@ final class AccessPointController extends Controller
         $sortable = [
             'state' => 'cisco_wlc_ap_monitor.state',
             'ap_name' => 'cisco_wlc_ap_monitor.ap_name',
+            'local_ip' => 'cisco_wlc_ap_monitor.local_ip',
             'controller' => 'devices.hostname',
             'radio_mac' => 'cisco_wlc_ap_monitor.radio_mac',
             'clients' => 'cisco_wlc_ap_monitor.client_count',
@@ -55,6 +56,7 @@ final class AccessPointController extends Controller
         if ($search !== '') {
             $query->where(function ($inner) use ($search): void {
                 $inner->where('ap_name', 'like', "%{$search}%")
+                    ->orWhere('local_ip', 'like', "%{$search}%")
                     ->orWhere('radio_mac', 'like', "%{$search}%")
                     ->orWhere('channels', 'like', "%{$search}%")
                     ->orWhere('devices.hostname', 'like', "%{$search}%")
