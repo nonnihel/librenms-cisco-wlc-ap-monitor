@@ -83,6 +83,18 @@ final class AccessPointController extends Controller
         ));
     }
 
+    public function show(Request $request, int $id): View
+    {
+        abort_unless($request->user()?->can('admin'), 403);
+
+        $ap = WlcAccessPoint::query()
+            ->leftJoin('devices', 'devices.device_id', '=', 'cisco_wlc_ap_monitor.device_id')
+            ->select('cisco_wlc_ap_monitor.*', 'devices.hostname', 'devices.sysName')
+            ->findOrFail($id);
+
+        return view('cisco-wlc-ap-monitor::show', compact('ap'));
+    }
+
     public function widget(Request $request): View
     {
         abort_unless($request->user() !== null, 403);
