@@ -37,7 +37,7 @@
                     <tr>
                         <td>
                             <span class="label label-danger">DOWN</span>
-                            <a href="{{ url('/cisco-wlc-ap-monitor?device_id=' . $ap->device_id . '&state=down&search=' . urlencode($ap->ap_name)) }}">
+                            <a href="{{ route('cisco-wlc-ap-monitor.show', $ap->id) }}">
                                 {{ $ap->ap_name }}
                             </a>
                         </td>
@@ -57,8 +57,8 @@
     @endif
 
     <div class="tw:mt-3">
-        <a href="{{ url('/cisco-wlc-ap-monitor' . ($deviceId ? '?device_id=' . $deviceId : '')) }}">
-            Open Cisco WLC AP Monitor
+        <a class="btn btn-primary btn-sm" href="{{ route('cisco-wlc-ap-monitor.index', array_filter(['device_id' => $deviceId])) }}">
+            <i class="fa fa-wifi" aria-hidden="true"></i> View all access points
         </a>
     </div>
 </div>
