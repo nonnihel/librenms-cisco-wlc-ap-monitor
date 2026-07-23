@@ -18,7 +18,7 @@ final class PollCiscoWlcAccessPoints extends Command
         {--no-core-poll : Do not launch the LibreNMS OS poll before comparing inventory}
         {--timeout=240 : Maximum seconds allowed for each core OS poll}';
 
-    protected $description = 'Track Cisco WLC AP up/down state without losing APs removed from the core access_points table.';
+    protected $description = 'Track Cisco WLC AP state and retain inventory details after APs disappear from the core table.';
 
     public function handle(): int
     {
@@ -28,11 +28,9 @@ final class PollCiscoWlcAccessPoints extends Command
             ->when($this->option('device'), function ($query): void {
                 $spec = (string) $this->option('device');
                 $query->where(function ($inner) use ($spec): void {
-                    if (ctype_digit($spec)) {
-                        $inner->where('device_id', (int) $spec);
-                    } else {
-                        $inner->where('hostname', $spec);
-                    }
+                    ctype_digit($spec)
+                        ? $inner->where('device_id', (int) $spec)
+                        : $inner->where('hostname', $spec);
                 });
             })
             ->get(['device_id', 'hostname', 'sysName']);
@@ -58,8 +56,6 @@ final class PollCiscoWlcAccessPoints extends Command
 
     private function pollDevice(int $deviceId, string $hostname): void
     {
-        $existingCount = WlcAccessPoint::query()->where('device_id', $deviceId)->count();
-
         if (! $this->option('no-core-poll')) {
             $process = new Process([
                 PHP_BINARY,
@@ -79,26 +75,19 @@ final class PollCiscoWlcAccessPoints extends Command
             }
         }
 
-        $after = $this->coreInventory($deviceId);
+        $inventory = $this->coreInventory($deviceId);
         $now = Carbon::now();
+        $seenIds = [];
 
-        if ($existingCount === 0) {
-            foreach ($after as $name => $row) {
-                WlcAccessPoint::query()->create([
-                    'device_id' => $deviceId,
-                    'ap_name' => $name,
-                    'radio_mac' => $row->mac_addr,
-                    'state' => 'up',
-                    'first_seen_at' => $now,
-                    'last_seen_at' => $now,
-                ]);
-            }
-            $this->info("{$hostname}: seeded " . count($after) . ' APs.');
-            return;
-        }
+        foreach ($inventory as $name => $row) {
+            $mac = $this->normalizeMac((string) ($row->mac_addr ?? ''));
 
-        foreach ($after as $name => $row) {
-            $ap = WlcAccessPoint::query()->firstOrNew([
+            // Prefer the stable radio MAC so an AP rename updates the existing row.
+            $ap = $mac !== ''
+                ? WlcAccessPoint::query()->where('device_id', $deviceId)->where('radio_mac', $mac)->first()
+                : null;
+
+            $ap ??= WlcAccessPoint::query()->firstOrNew([
                 'device_id' => $deviceId,
                 'ap_name' => $name,
             ]);
@@ -106,8 +95,14 @@ final class PollCiscoWlcAccessPoints extends Command
             $wasDown = $ap->exists && $ap->state === 'down';
             $isRetired = $ap->exists && $ap->state === 'retired';
             $isIgnored = $ap->exists && $ap->state === 'ignored';
+            $oldName = $ap->ap_name;
 
-            $ap->radio_mac = $row->mac_addr;
+            $ap->ap_name = $name;
+            $ap->radio_mac = $mac !== '' ? $mac : null;
+            $ap->client_count = isset($row->client_count) ? (int) $row->client_count : null;
+            $ap->radio_count = isset($row->radio_count) ? (int) $row->radio_count : null;
+            $ap->channels = $row->channels ?: null;
+            $ap->max_utilization = isset($row->max_utilization) ? (int) $row->max_utilization : null;
             $ap->first_seen_at ??= $now;
             $ap->last_seen_at = $now;
 
@@ -121,12 +116,17 @@ final class PollCiscoWlcAccessPoints extends Command
                 $this->line("{$hostname}: RECOVERED {$name}");
             }
 
+            if ($ap->exists && $oldName && $oldName !== $name) {
+                $this->line("{$hostname}: RENAMED {$oldName} -> {$name}");
+            }
+
             $ap->save();
+            $seenIds[] = $ap->getKey();
         }
 
         WlcAccessPoint::query()
             ->where('device_id', $deviceId)
-            ->whereNotIn('ap_name', array_keys($after))
+            ->when($seenIds !== [], fn ($query) => $query->whereNotIn('id', $seenIds))
             ->whereNotIn('state', ['ignored', 'retired'])
             ->get()
             ->each(function (WlcAccessPoint $ap) use ($now, $hostname): void {
@@ -139,11 +139,11 @@ final class PollCiscoWlcAccessPoints extends Command
                 }
             });
 
-        $this->info("{$hostname}: " . count($after) . ' APs currently online.');
+        $this->info("{$hostname}: " . count($inventory) . ' APs currently online.');
     }
 
     /**
-     * Return one row per AP name. The core table stores one row per radio.
+     * Return one aggregate row per AP name. LibreNMS stores one row per radio.
      *
      * @return array<string, object>
      */
@@ -151,11 +151,26 @@ final class PollCiscoWlcAccessPoints extends Command
     {
         return DB::table('access_points')
             ->where('device_id', $deviceId)
-            ->selectRaw('name, MIN(mac_addr) AS mac_addr')
+            ->selectRaw("name,
+                MIN(mac_addr) AS mac_addr,
+                COUNT(*) AS radio_count,
+                SUM(COALESCE(numasoclients, 0)) AS client_count,
+                GROUP_CONCAT(DISTINCT NULLIF(channel, 0) ORDER BY channel SEPARATOR ', ') AS channels,
+                MAX(COALESCE(radioutil, 0)) AS max_utilization")
             ->groupBy('name')
             ->orderBy('name')
             ->get()
             ->keyBy('name')
             ->all();
+    }
+
+    private function normalizeMac(string $mac): string
+    {
+        $hex = strtolower(preg_replace('/[^0-9a-f]/i', '', $mac) ?? '');
+        if (strlen($hex) !== 12) {
+            return strtolower(trim($mac));
+        }
+
+        return implode(':', str_split($hex, 2));
     }
 }
