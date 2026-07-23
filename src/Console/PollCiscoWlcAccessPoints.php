@@ -178,9 +178,18 @@ final class PollCiscoWlcAccessPoints extends Command
     private function localIpInventory(array $device): array
     {
         try {
+            $commonHelpers = base_path('includes/common.php');
+            if (! function_exists('external_exec') && is_file($commonHelpers)) {
+                require_once $commonHelpers;
+            }
+
             $snmpHelpers = base_path('includes/snmp.inc.php');
             if (! function_exists('snmpwalk_cache_oid') && is_file($snmpHelpers)) {
                 require_once $snmpHelpers;
+            }
+
+            if (! function_exists('external_exec')) {
+                throw new \RuntimeException('LibreNMS helper external_exec() is unavailable.');
             }
 
             if (! function_exists('snmpwalk_cache_oid')) {
