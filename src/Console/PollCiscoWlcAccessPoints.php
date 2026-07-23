@@ -90,7 +90,6 @@ final class PollCiscoWlcAccessPoints extends Command
         foreach ($inventory as $name => $row) {
             $mac = $this->normalizeMac((string) ($row->mac_addr ?? ''));
 
-            // Prefer the stable radio MAC so an AP rename updates the existing row.
             $ap = $mac !== ''
                 ? WlcAccessPoint::query()->where('device_id', $deviceId)->where('radio_mac', $mac)->first()
                 : null;
@@ -153,8 +152,6 @@ final class PollCiscoWlcAccessPoints extends Command
     }
 
     /**
-     * Return one aggregate row per AP name. LibreNMS stores one row per radio.
-     *
      * @return array<string, object>
      */
     private function coreInventory(int $deviceId): array
@@ -175,18 +172,23 @@ final class PollCiscoWlcAccessPoints extends Command
     }
 
     /**
-     * Collect AP names and AP-local addresses from the WLC using the same SNMP
-     * credentials and transport settings already configured on the LibreNMS device.
-     * Both columns share the same AP MAC index, so they can be joined safely.
-     *
      * @param array<string, mixed> $device
      * @return array<string, string>
      */
     private function localIpInventory(array $device): array
     {
         try {
-            $names = snmpwalk_cache_oid($device, 'cLApName', [], 'CISCO-LWAPP-AP-MIB');
-            $addresses = snmpwalk_cache_oid($device, 'cLApInetAddress', [], 'CISCO-LWAPP-AP-MIB');
+            $snmpHelpers = base_path('includes/snmp.inc.php');
+            if (! function_exists('snmpwalk_cache_oid') && is_file($snmpHelpers)) {
+                require_once $snmpHelpers;
+            }
+
+            if (! function_exists('snmpwalk_cache_oid')) {
+                throw new \RuntimeException('LibreNMS SNMP helper snmpwalk_cache_oid() is unavailable.');
+            }
+
+            $names = \snmpwalk_cache_oid($device, 'cLApName', [], 'CISCO-LWAPP-AP-MIB');
+            $addresses = \snmpwalk_cache_oid($device, 'cLApInetAddress', [], 'CISCO-LWAPP-AP-MIB');
         } catch (Throwable $e) {
             $this->warn((string) $device['hostname'] . ': unable to collect AP local IP addresses: ' . $e->getMessage());
             return [];
@@ -217,13 +219,11 @@ final class PollCiscoWlcAccessPoints extends Command
                 return $value;
             }
 
-            // Raw InetAddress values are commonly returned as 4 or 16 binary bytes.
             if (strlen($value) === 4 || strlen($value) === 16) {
                 $decoded = @inet_ntop($value);
                 return $decoded !== false ? $decoded : null;
             }
 
-            // Accept Net-SNMP style hexadecimal output if a driver returns it verbatim.
             $hex = preg_replace('/^(?:Hex-STRING:\s*)/i', '', $value);
             $hex = preg_replace('/[^0-9a-f]/i', '', (string) $hex);
             if (strlen($hex) === 8 || strlen($hex) === 32) {
