@@ -83,7 +83,7 @@
                                     @endphp
                                     <tr>
                                         <td><span class="label label-{{ $labels[$ap->state] ?? 'default' }}">{{ strtoupper($ap->state) }}</span></td>
-                                        <td><strong>{{ $ap->ap_name }}</strong></td>
+                                        <td><strong><a href="{{ route('cisco-wlc-ap-monitor.show', $ap->id) }}">{{ $ap->ap_name }}</a></strong></td>
                                         <td>{{ $ap->sysName ?: $ap->hostname }}<br><small>{{ $ap->hostname }}</small></td>
                                         <td>{{ $ap->client_count ?? '—' }}</td>
                                         <td>{{ $ap->radio_count ?? '—' }}</td>
@@ -116,7 +116,7 @@
                     {{ $aps->links() }}
 
                     <div class="alert alert-info" style="margin-top: 15px;">
-                        Click a column heading to sort. Client count, radios, channels and utilization come from the current LibreNMS wireless inventory and the last known values remain visible while an AP is down.
+                        Click an access point name for details. Click a column heading to sort. Client count, radios, channels and utilization come from the current LibreNMS wireless inventory and the last known values remain visible while an AP is down.
                     </div>
                 </div>
             </div>
