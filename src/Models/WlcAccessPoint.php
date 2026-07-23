@@ -13,6 +13,9 @@ final class WlcAccessPoint extends Model
     protected $guarded = [];
 
     protected $casts = [
+        'client_count' => 'integer',
+        'radio_count' => 'integer',
+        'max_utilization' => 'integer',
         'first_seen_at' => 'datetime',
         'last_seen_at' => 'datetime',
         'down_since' => 'datetime',
