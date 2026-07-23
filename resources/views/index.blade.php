@@ -3,6 +3,13 @@
 @section('title', 'Cisco WLC AP Monitor')
 
 @section('content')
+@php
+    $sortLink = function (string $column) use ($sort, $direction) {
+        $next = $sort === $column && $direction === 'asc' ? 'desc' : 'asc';
+        return request()->fullUrlWithQuery(['sort' => $column, 'direction' => $next, 'page' => null]);
+    };
+    $sortMark = fn (string $column) => $sort === $column ? ($direction === 'asc' ? ' ▲' : ' ▼') : '';
+@endphp
 <div class="container-fluid">
     <div class="row">
         <div class="col-md-12">
@@ -43,17 +50,30 @@
                             </select>
                         </div>
                         <div class="form-group">
-                            <input name="search" class="form-control" value="{{ $search }}" placeholder="AP name, MAC or WLC">
+                            <input name="search" class="form-control" value="{{ $search }}" placeholder="AP name, MAC, channel or WLC">
                         </div>
+                        <input type="hidden" name="sort" value="{{ $sort }}">
+                        <input type="hidden" name="direction" value="{{ $direction }}">
                         <button class="btn btn-primary" type="submit">Filter</button>
+                        <a class="btn btn-default" href="{{ route('cisco-wlc-ap-monitor.index') }}">Reset</a>
                     </form>
 
                     <div class="table-responsive">
-                        <table class="table table-striped table-condensed">
+                        <table class="table table-striped table-condensed table-hover">
                             <thead>
                                 <tr>
-                                    <th>Status</th><th>Access point</th><th>Controller</th><th>Radio MAC</th>
-                                    <th>Last seen</th><th>Down since</th><th>Reason</th><th>Actions</th>
+                                    <th><a href="{{ $sortLink('state') }}">Status{!! $sortMark('state') !!}</a></th>
+                                    <th><a href="{{ $sortLink('ap_name') }}">Access point{!! $sortMark('ap_name') !!}</a></th>
+                                    <th><a href="{{ $sortLink('controller') }}">Controller{!! $sortMark('controller') !!}</a></th>
+                                    <th><a href="{{ $sortLink('clients') }}">Clients{!! $sortMark('clients') !!}</a></th>
+                                    <th><a href="{{ $sortLink('radios') }}">Radios{!! $sortMark('radios') !!}</a></th>
+                                    <th>Channels</th>
+                                    <th><a href="{{ $sortLink('utilization') }}">Max util.{!! $sortMark('utilization') !!}</a></th>
+                                    <th><a href="{{ $sortLink('radio_mac') }}">Radio MAC{!! $sortMark('radio_mac') !!}</a></th>
+                                    <th><a href="{{ $sortLink('last_seen') }}">Last seen{!! $sortMark('last_seen') !!}</a></th>
+                                    <th><a href="{{ $sortLink('down_since') }}">Down since{!! $sortMark('down_since') !!}</a></th>
+                                    <th>Reason</th>
+                                    <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -65,7 +85,11 @@
                                         <td><span class="label label-{{ $labels[$ap->state] ?? 'default' }}">{{ strtoupper($ap->state) }}</span></td>
                                         <td><strong>{{ $ap->ap_name }}</strong></td>
                                         <td>{{ $ap->sysName ?: $ap->hostname }}<br><small>{{ $ap->hostname }}</small></td>
-                                        <td>{{ $ap->radio_mac ?: '—' }}</td>
+                                        <td>{{ $ap->client_count ?? '—' }}</td>
+                                        <td>{{ $ap->radio_count ?? '—' }}</td>
+                                        <td>{{ $ap->channels ?: '—' }}</td>
+                                        <td>{{ $ap->max_utilization !== null ? $ap->max_utilization . '%' : '—' }}</td>
+                                        <td><code>{{ $ap->radio_mac ?: '—' }}</code></td>
                                         <td>{{ optional($ap->last_seen_at)->format('Y-m-d H:i:s') ?: '—' }}</td>
                                         <td>{{ optional($ap->down_since)->format('Y-m-d H:i:s') ?: '—' }}</td>
                                         <td>{{ $ap->reason ?: '—' }}</td>
@@ -84,7 +108,7 @@
                                         </td>
                                     </tr>
                                 @empty
-                                    <tr><td colspan="8" class="text-muted">No access points match this filter.</td></tr>
+                                    <tr><td colspan="12" class="text-muted">No access points match this filter.</td></tr>
                                 @endforelse
                             </tbody>
                         </table>
@@ -92,9 +116,7 @@
                     {{ $aps->links() }}
 
                     <div class="alert alert-info" style="margin-top: 15px;">
-                        <strong>Delete:</strong> removes the stored history. An online AP will be rediscovered on the next poll.
-                        <strong>Ignore:</strong> keeps it visible but excludes it from alerts.
-                        <strong>Retire:</strong> marks it permanently decommissioned until restored.
+                        Click a column heading to sort. Client count, radios, channels and utilization come from the current LibreNMS wireless inventory and the last known values remain visible while an AP is down.
                     </div>
                 </div>
             </div>
