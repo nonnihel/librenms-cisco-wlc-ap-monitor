@@ -50,7 +50,7 @@
                             </select>
                         </div>
                         <div class="form-group">
-                            <input name="search" class="form-control" value="{{ $search }}" placeholder="AP name, MAC, channel or WLC">
+                            <input name="search" class="form-control" value="{{ $search }}" placeholder="AP name, local IP, MAC, channel or WLC">
                         </div>
                         <input type="hidden" name="sort" value="{{ $sort }}">
                         <input type="hidden" name="direction" value="{{ $direction }}">
@@ -64,6 +64,7 @@
                                 <tr>
                                     <th><a href="{{ $sortLink('state') }}">Status{!! $sortMark('state') !!}</a></th>
                                     <th><a href="{{ $sortLink('ap_name') }}">Access point{!! $sortMark('ap_name') !!}</a></th>
+                                    <th><a href="{{ $sortLink('local_ip') }}">Local IP{!! $sortMark('local_ip') !!}</a></th>
                                     <th><a href="{{ $sortLink('controller') }}">Controller{!! $sortMark('controller') !!}</a></th>
                                     <th><a href="{{ $sortLink('clients') }}">Clients{!! $sortMark('clients') !!}</a></th>
                                     <th><a href="{{ $sortLink('radios') }}">Radios{!! $sortMark('radios') !!}</a></th>
@@ -84,6 +85,7 @@
                                     <tr>
                                         <td><span class="label label-{{ $labels[$ap->state] ?? 'default' }}">{{ strtoupper($ap->state) }}</span></td>
                                         <td><strong><a href="{{ route('cisco-wlc-ap-monitor.show', $ap->id) }}">{{ $ap->ap_name }}</a></strong></td>
+                                        <td><code>{{ $ap->local_ip ?: '—' }}</code></td>
                                         <td>{{ $ap->sysName ?: $ap->hostname }}<br><small>{{ $ap->hostname }}</small></td>
                                         <td>{{ $ap->client_count ?? '—' }}</td>
                                         <td>{{ $ap->radio_count ?? '—' }}</td>
@@ -108,7 +110,7 @@
                                         </td>
                                     </tr>
                                 @empty
-                                    <tr><td colspan="12" class="text-muted">No access points match this filter.</td></tr>
+                                    <tr><td colspan="13" class="text-muted">No access points match this filter.</td></tr>
                                 @endforelse
                             </tbody>
                         </table>
@@ -116,7 +118,7 @@
                     {{ $aps->links() }}
 
                     <div class="alert alert-info" style="margin-top: 15px;">
-                        Click an access point name for details. Click a column heading to sort. Client count, radios, channels and utilization come from the current LibreNMS wireless inventory and the last known values remain visible while an AP is down.
+                        Click an access point name for details. Local IP addresses are collected directly from the WLC using CISCO-LWAPP-AP-MIB::cLApInetAddress and the last known value remains visible while an AP is down.
                     </div>
                 </div>
             </div>
