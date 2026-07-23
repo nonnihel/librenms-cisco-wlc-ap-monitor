@@ -221,34 +221,62 @@ final class PollCiscoWlcAccessPoints extends Command
             return null;
         }
 
-        // InetAddress is binary data. Decode it before calling trim(), because
-        // IPv4 addresses beginning with 10 have 0x0A as their first byte and
-        // trim() would incorrectly remove that byte.
-        $raw = $value;
-        if (strlen($raw) === 4 || strlen($raw) === 16) {
-            $decoded = @inet_ntop($raw);
-            if ($decoded !== false) {
-                return $decoded;
+        foreach ($this->inetAddressCandidates($value) as $candidate) {
+            if (filter_var($candidate, FILTER_VALIDATE_IP)) {
+                return $candidate;
             }
-        }
 
-        $text = trim($value);
-        if (filter_var($text, FILTER_VALIDATE_IP)) {
-            return $text;
-        }
+            if (strlen($candidate) === 4 || strlen($candidate) === 16) {
+                $decoded = @inet_ntop($candidate);
+                if ($decoded !== false) {
+                    return $decoded;
+                }
+            }
 
-        // Accept Net-SNMP style hexadecimal output if returned verbatim.
-        $hex = preg_replace('/^(?:Hex-STRING:\s*)/i', '', $text);
-        $hex = preg_replace('/[^0-9a-f]/i', '', (string) $hex);
-        if (strlen($hex) === 8 || strlen($hex) === 32) {
-            $binary = @hex2bin($hex);
-            if ($binary !== false) {
-                $decoded = @inet_ntop($binary);
-                return $decoded !== false ? $decoded : null;
+            $hex = preg_replace('/^(?:Hex-STRING:\s*)/i', '', $candidate);
+            $hex = preg_replace('/[^0-9a-f]/i', '', (string) $hex);
+            if (strlen($hex) === 8 || strlen($hex) === 32) {
+                $binary = @hex2bin($hex);
+                if ($binary !== false) {
+                    $decoded = @inet_ntop($binary);
+                    if ($decoded !== false) {
+                        return $decoded;
+                    }
+                }
             }
         }
 
         return null;
+    }
+
+    /**
+     * LibreNMS/Net-SNMP may return InetAddress as raw binary, as Hex-STRING,
+     * or as a quoted STRING containing escaped/control bytes. Keep raw binary
+     * intact and only remove textual wrappers from additional candidates.
+     *
+     * @return list<string>
+     */
+    private function inetAddressCandidates(string $value): array
+    {
+        $candidates = [$value];
+        $text = preg_replace('/^(?:STRING|Hex-STRING):\s*/i', '', $value) ?? $value;
+        $candidates[] = $text;
+
+        if (strlen($text) >= 2 && $text[0] === '"' && $text[strlen($text) - 1] === '"') {
+            $unquoted = substr($text, 1, -1);
+            $candidates[] = $unquoted;
+            $candidates[] = stripcslashes($unquoted);
+        }
+
+        $trimmed = trim($text);
+        $candidates[] = $trimmed;
+        if (strlen($trimmed) >= 2 && $trimmed[0] === '"' && $trimmed[strlen($trimmed) - 1] === '"') {
+            $unquoted = substr($trimmed, 1, -1);
+            $candidates[] = $unquoted;
+            $candidates[] = stripcslashes($unquoted);
+        }
+
+        return array_values(array_unique($candidates, SORT_STRING));
     }
 
     private function normalizeMac(string $mac): string
