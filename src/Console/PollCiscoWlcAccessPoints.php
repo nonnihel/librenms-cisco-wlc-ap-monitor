@@ -188,10 +188,6 @@ final class PollCiscoWlcAccessPoints extends Command
                 require_once $snmpHelpers;
             }
 
-            if (! function_exists('external_exec')) {
-                throw new \RuntimeException('LibreNMS helper external_exec() is unavailable.');
-            }
-
             if (! function_exists('snmpwalk_cache_oid')) {
                 throw new \RuntimeException('LibreNMS SNMP helper snmpwalk_cache_oid() is unavailable.');
             }
@@ -221,26 +217,34 @@ final class PollCiscoWlcAccessPoints extends Command
 
     private function decodeInetAddress(mixed $value): ?string
     {
-        if (is_string($value)) {
-            $value = trim($value);
+        if (! is_string($value)) {
+            return null;
+        }
 
-            if (filter_var($value, FILTER_VALIDATE_IP)) {
-                return $value;
+        // InetAddress is binary data. Decode it before calling trim(), because
+        // IPv4 addresses beginning with 10 have 0x0A as their first byte and
+        // trim() would incorrectly remove that byte.
+        $raw = $value;
+        if (strlen($raw) === 4 || strlen($raw) === 16) {
+            $decoded = @inet_ntop($raw);
+            if ($decoded !== false) {
+                return $decoded;
             }
+        }
 
-            if (strlen($value) === 4 || strlen($value) === 16) {
-                $decoded = @inet_ntop($value);
+        $text = trim($value);
+        if (filter_var($text, FILTER_VALIDATE_IP)) {
+            return $text;
+        }
+
+        // Accept Net-SNMP style hexadecimal output if returned verbatim.
+        $hex = preg_replace('/^(?:Hex-STRING:\s*)/i', '', $text);
+        $hex = preg_replace('/[^0-9a-f]/i', '', (string) $hex);
+        if (strlen($hex) === 8 || strlen($hex) === 32) {
+            $binary = @hex2bin($hex);
+            if ($binary !== false) {
+                $decoded = @inet_ntop($binary);
                 return $decoded !== false ? $decoded : null;
-            }
-
-            $hex = preg_replace('/^(?:Hex-STRING:\s*)/i', '', $value);
-            $hex = preg_replace('/[^0-9a-f]/i', '', (string) $hex);
-            if (strlen($hex) === 8 || strlen($hex) === 32) {
-                $binary = @hex2bin($hex);
-                if ($binary !== false) {
-                    $decoded = @inet_ntop($binary);
-                    return $decoded !== false ? $decoded : null;
-                }
             }
         }
 
