@@ -5,15 +5,24 @@ declare(strict_types=1);
 namespace Averna\CiscoWlcApMonitor;
 
 use Averna\CiscoWlcApMonitor\Console\PollCiscoWlcAccessPoints;
+use Averna\CiscoWlcApMonitor\Hooks\MenuEntry;
 use Averna\CiscoWlcApMonitor\Http\Controllers\CiscoWlcApMonitorWidgetController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
+use LibreNMS\Interfaces\Plugins\Hooks\MenuEntryHook;
+use LibreNMS\Interfaces\Plugins\PluginManagerInterface;
 
 final class CiscoWlcApMonitorServiceProvider extends ServiceProvider
 {
-    public function boot(): void
+    public function boot(PluginManagerInterface $pluginManager): void
     {
-        $this->loadViewsFrom(__DIR__ . '/../resources/views', 'cisco-wlc-ap-monitor');
+        $pluginName = 'cisco-wlc-ap-monitor';
+
+        // Register a LibreNMS plugin menu entry. LibreNMS renders plugin hooks
+        // in its Plugins menu area; this does not modify LibreNMS core files.
+        $pluginManager->publishHook($pluginName, MenuEntryHook::class, MenuEntry::class);
+
+        $this->loadViewsFrom(__DIR__ . '/../resources/views', $pluginName);
         $this->loadMigrationsFrom(__DIR__ . '/../database/migrations');
 
         Route::middleware(['web', 'auth'])
