@@ -26,6 +26,7 @@
                         <table class="table table-striped table-condensed">
                             <tbody>
                             <tr><th style="width: 240px;">Access point</th><td>{{ $ap->ap_name }}</td></tr>
+                            <tr><th>Local IP address</th><td><code>{{ $ap->local_ip ?: '—' }}</code></td></tr>
                             <tr><th>Controller</th><td>{{ $ap->sysName ?: $ap->hostname ?: ('Device ' . $ap->device_id) }}</td></tr>
                             <tr><th>Radio MAC</th><td>{{ $ap->radio_mac ?: '—' }}</td></tr>
                             <tr><th>Location</th><td>{{ $ap->location ?: '—' }}</td></tr>
