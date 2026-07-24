@@ -1,6 +1,7 @@
 <?php
 
 declare(strict_types=1);
+
 namespace Averna\CiscoWlcApMonitor\Console;
 
 use App\Models\Device;
@@ -14,6 +15,8 @@ use Throwable;
 
 final class PollCiscoWlcAccessPoints extends Command
 {
+    private const LOCAL_IP_OID = '.1.3.6.1.4.1.9.9.513.1.1.10.1.4';
+
     protected $signature = 'cisco-wlc-ap:poll
         {--device= : LibreNMS device_id or hostname; omitted means all ciscowlc devices}
         {--no-core-poll : Do not launch the LibreNMS OS poll before comparing inventory}
@@ -82,7 +85,7 @@ final class PollCiscoWlcAccessPoints extends Command
         }
 
         $inventory = $this->coreInventory($deviceId);
-        $localIps = $this->localIpInventory($deviceId, $hostname);
+        $localIps = $this->localIpInventory($device, $hostname);
         $now = Carbon::now();
         $seenIds = [];
 
@@ -145,8 +148,7 @@ final class PollCiscoWlcAccessPoints extends Command
                 }
             });
 
-        $ipCount = count(array_filter($localIps));
-        $this->info("{$hostname}: " . count($inventory) . " APs currently online; {$ipCount} local IP addresses collected.");
+        $this->info("{$hostname}: " . count($inventory) . ' APs currently online; ' . count($localIps) . ' local IP addresses collected.');
     }
 
     /** @return array<string, object> */
@@ -167,23 +169,28 @@ final class PollCiscoWlcAccessPoints extends Command
             ->all();
     }
 
-    /** @return array<string, string> */
-    private function localIpInventory(int $deviceId, string $hostname): array
+    /**
+     * Use SnmpQuery for AP names, but collect InetAddress values from a raw
+     * hexadecimal Net-SNMP walk. Text parsers may strip leading/trailing control
+     * octets such as 0A and 0D from binary IPv4 addresses.
+     *
+     * @param array<string, mixed> $deviceRow
+     * @return array<string, string>
+     */
+    private function localIpInventory(array $deviceRow, string $hostname): array
     {
         try {
-            $device = Device::query()->findOrFail($deviceId);
-            $namesResponse = SnmpQuery::device($device)->numericIndex()->walk('CISCO-LWAPP-AP-MIB::cLApName');
-            $addressesResponse = SnmpQuery::device($device)->numericIndex()->walk('CISCO-LWAPP-AP-MIB::cLApInetAddress');
+            $device = Device::query()->findOrFail((int) $deviceRow['device_id']);
+            $namesResponse = SnmpQuery::device($device)
+                ->numericIndex()
+                ->walk('CISCO-LWAPP-AP-MIB::cLApName');
 
             if (! $namesResponse->isValid()) {
                 throw new \RuntimeException('cLApName walk failed: ' . $namesResponse->getErrorMessage());
             }
-            if (! $addressesResponse->isValid()) {
-                throw new \RuntimeException('cLApInetAddress walk failed: ' . $addressesResponse->getErrorMessage());
-            }
 
             $names = $this->valuesByNumericIndex($namesResponse->values());
-            $addresses = $this->valuesByNumericIndex($addressesResponse->values());
+            $addresses = $this->rawHexInetAddresses($deviceRow);
         } catch (Throwable $e) {
             $this->warn("{$hostname}: unable to collect AP local IP addresses: {$e->getMessage()}");
             return [];
@@ -192,12 +199,8 @@ final class PollCiscoWlcAccessPoints extends Command
         $result = [];
         foreach ($names as $index => $nameValue) {
             $name = trim((string) $nameValue, " \t\n\r\0\x0B\"");
-            if ($name === '' || ! array_key_exists($index, $addresses)) {
-                continue;
-            }
-
-            $ip = $this->decodeInetAddress($addresses[$index]);
-            if ($ip !== null) {
+            $ip = $addresses[$index] ?? null;
+            if ($name !== '' && is_string($ip) && filter_var($ip, FILTER_VALIDATE_IP)) {
                 $result[$name] = $ip;
             }
         }
@@ -205,90 +208,70 @@ final class PollCiscoWlcAccessPoints extends Command
         return $result;
     }
 
-    /**
-     * @param array<string, mixed> $values
-     * @return array<string, mixed>
-     */
+    /** @param array<string, mixed> $device */
+    private function rawHexInetAddresses(array $device): array
+    {
+        $commonHelpers = base_path('includes/common.php');
+        if (! function_exists('external_exec') && is_file($commonHelpers)) {
+            require_once $commonHelpers;
+        }
+
+        $snmpHelpers = base_path('includes/snmp.inc.php');
+        if (! function_exists('gen_snmpwalk_cmd') && is_file($snmpHelpers)) {
+            require_once $snmpHelpers;
+        }
+
+        if (! function_exists('gen_snmpwalk_cmd')) {
+            throw new \RuntimeException('LibreNMS SNMP command builder is unavailable.');
+        }
+
+        $command = \gen_snmpwalk_cmd(
+            $device,
+            self::LOCAL_IP_OID,
+            ['-On', '-Ox']
+        );
+
+        $process = new Process($command, base_path());
+        $process->setTimeout((int) $this->option('timeout'));
+        $process->run();
+
+        if (! $process->isSuccessful()) {
+            throw new \RuntimeException('raw cLApInetAddress walk failed: ' . trim($process->getErrorOutput() ?: $process->getOutput()));
+        }
+
+        $addresses = [];
+        $base = preg_quote(self::LOCAL_IP_OID, '/');
+        foreach (preg_split('/\R/', $process->getOutput()) ?: [] as $line) {
+            if (preg_match('/^' . $base . '\.(\d+(?:\.\d+){5})\s+=\s+Hex-STRING:\s+((?:[0-9A-Fa-f]{2}\s*)+)$/', trim($line), $matches) !== 1) {
+                continue;
+            }
+
+            $hex = preg_replace('/\s+/', '', $matches[2]);
+            $binary = is_string($hex) ? @hex2bin($hex) : false;
+            if ($binary === false || ! in_array(strlen($binary), [4, 16], true)) {
+                continue;
+            }
+
+            $ip = @inet_ntop($binary);
+            if ($ip !== false) {
+                $addresses[$matches[1]] = $ip;
+            }
+        }
+
+        return $addresses;
+    }
+
+    /** @param array<string, mixed> $values */
     private function valuesByNumericIndex(array $values): array
     {
         $indexed = [];
         foreach ($values as $oid => $value) {
-            $oid = (string) $oid;
-
-            // SnmpQuery::numericIndex() returns textual OIDs followed by the
-            // six decimal MAC octets, for example cLApName.0.93.115.0.90.32.
-            if (preg_match('/\.(\d+(?:\.\d+){5})$/', $oid, $matches) === 1) {
-                $indexed[$matches[1]] = $value;
-                continue;
-            }
-
-            // Keep compatibility with table-style bracket indexes.
-            if (preg_match('/\[([^\]]+)\]$/', $oid, $matches) === 1) {
+            if (preg_match('/\.(\d+(?:\.\d+){5})$/', (string) $oid, $matches) === 1) {
                 $indexed[$matches[1]] = $value;
             }
         }
 
         return $indexed;
-    }
-
-    private function decodeInetAddress(mixed $value): ?string
-    {
-        if (! is_string($value)) {
-            return null;
-        }
-
-        $raw = $value;
-        if (strlen($raw) === 4 || strlen($raw) === 16) {
-            $decoded = @inet_ntop($raw);
-            if ($decoded !== false) {
-                return $decoded;
-            }
-        }
-
-        // LibreNMS may trim a leading newline byte (0x0A) from binary IPv4
-        // values. On this Cisco WLC those shortened three-byte values are
-        // 10.x.x.x addresses, so restore the missing first octet.
-        if (strlen($raw) === 3) {
-            $decoded = @inet_ntop("\x0A" . $raw);
-            if ($decoded !== false) {
-                return $decoded;
-            }
-        }
-
-        $text = trim($value);
-        if (filter_var($text, FILTER_VALIDATE_IP)) {
-            return $text;
-        }
-
-        $text = preg_replace('/^(?:Hex-STRING|STRING):\s*/i', '', $text) ?? $text;
-        if (strlen($text) >= 2 && $text[0] === '"' && $text[strlen($text) - 1] === '"') {
-            $text = substr($text, 1, -1);
-        }
-
-        // SnmpQuery commonly returns hexadecimal octets as "0A 64 63 1B".
-        $hexText = preg_replace('/[^0-9a-f]/i', '', $text);
-        if (is_string($hexText) && (strlen($hexText) === 8 || strlen($hexText) === 32)) {
-            $binary = @hex2bin($hexText);
-            if ($binary !== false) {
-                $decoded = @inet_ntop($binary);
-                if ($decoded !== false) {
-                    return $decoded;
-                }
-            }
-        }
-
-        $unescaped = preg_replace_callback('/\\\\x([0-9a-fA-F]{2})/', static fn (array $match): string => chr((int) hexdec($match[1])), $text);
-        if (is_string($unescaped)) {
-            $unescaped = str_replace(['\\n', '\\r', '\\t', '\\\\', '\\"'], ["\n", "\r", "\t", '\\', '"'], $unescaped);
-            if (strlen($unescaped) === 4 || strlen($unescaped) === 16) {
-                $decoded = @inet_ntop($unescaped);
-                if ($decoded !== false) {
-                    return $decoded;
-                }
-            }
-        }
-
-        return null;
     }
 
     private function normalizeMac(string $mac): string
