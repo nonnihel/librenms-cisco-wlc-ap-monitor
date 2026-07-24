@@ -4,6 +4,18 @@ A LibreNMS package plugin for persistent monitoring of Cisco wireless access poi
 
 The plugin solves a practical monitoring gap: when an AP disappears from a Cisco WLC, LibreNMS may no longer retain enough information in its normal access-point inventory to identify the exact AP that went offline. This plugin maintains its own persistent AP inventory, marks missing APs as **down**, and reports the AP name through a native LibreNMS service check and alert.
 
+## Screenshots
+
+### AP management page
+
+![Cisco WLC AP Monitor management page](docs/images/ap-monitor-overview.svg)
+
+### LibreNMS dashboard widget
+
+![Cisco WLC AP Monitor dashboard widget](docs/images/dashboard-widget.svg)
+
+> The screenshots use fictional demonstration data. Hostnames, IP addresses, AP names, MAC addresses, locations, timestamps, alerts, and account details do not represent a production environment.
+
 ## What it does
 
 - Tracks Cisco APs learned from one or more Cisco WLC devices in LibreNMS.
