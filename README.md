@@ -58,7 +58,7 @@ That output can be delivered through any LibreNMS alert transport, including ema
 - LibreNMS Services support.
 - Standard Linux utilities including Git, cron, `rsync`, and `sudo`.
 
-The project was developed and tested with LibreNMS 26.7/26.8 development builds, including 26.8.0-dev, PHP 8.3, MariaDB 10.6, and Cisco AireOS 8.10. Other compatible versions may also work.
+The project was developed and tested with LibreNMS 26.7/26.8 development builds, including 26.8.0-dev, PHP 8.3, MariaDB 10.6, and a Cisco 3504 Wireless Controller running Cisco AireOS 8.10.185.0. The production test environment contained 107 joined access points. Other compatible Cisco AireOS WLC platforms and software versions may also work, but have not been validated by this project.
 
 ## Quick installation
 
