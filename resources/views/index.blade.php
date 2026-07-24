@@ -85,13 +85,13 @@
                                     <tr>
                                         <td><span class="label label-{{ $labels[$ap->state] ?? 'default' }}">{{ strtoupper($ap->state) }}</span></td>
                                         <td><strong><a href="{{ route('cisco-wlc-ap-monitor.show', $ap->id) }}">{{ $ap->ap_name }}</a></strong></td>
-                                        <td><code>{{ $ap->local_ip ?: '—' }}</code></td>
+                                        <td>{{ $ap->local_ip ?: '—' }}</td>
                                         <td>{{ $ap->sysName ?: $ap->hostname }}<br><small>{{ $ap->hostname }}</small></td>
                                         <td>{{ $ap->client_count ?? '—' }}</td>
                                         <td>{{ $ap->radio_count ?? '—' }}</td>
                                         <td>{{ $ap->channels ?: '—' }}</td>
                                         <td>{{ $ap->max_utilization !== null ? $ap->max_utilization . '%' : '—' }}</td>
-                                        <td><code>{{ $ap->radio_mac ?: '—' }}</code></td>
+                                        <td>{{ $ap->radio_mac ?: '—' }}</td>
                                         <td>{{ optional($ap->last_seen_at)->format('Y-m-d H:i:s') ?: '—' }}</td>
                                         <td>{{ optional($ap->down_since)->format('Y-m-d H:i:s') ?: '—' }}</td>
                                         <td>{{ $ap->reason ?: '—' }}</td>
