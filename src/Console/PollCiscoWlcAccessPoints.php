@@ -213,13 +213,18 @@ final class PollCiscoWlcAccessPoints extends Command
     {
         $indexed = [];
         foreach ($values as $oid => $value) {
-            if (preg_match('/\[([^\]]+)\]$/', (string) $oid, $matches) === 1) {
+            $oid = (string) $oid;
+
+            // SnmpQuery::numericIndex() returns textual OIDs followed by the
+            // six decimal MAC octets, for example cLApName.0.93.115.0.90.32.
+            if (preg_match('/\.(\d+(?:\.\d+){5})$/', $oid, $matches) === 1) {
                 $indexed[$matches[1]] = $value;
                 continue;
             }
 
-            if (preg_match('/(?:^|\.)6((?:\.\d+){6})$/', (string) $oid, $matches) === 1) {
-                $indexed['6' . $matches[1]] = $value;
+            // Keep compatibility with table-style bracket indexes.
+            if (preg_match('/\[([^\]]+)\]$/', $oid, $matches) === 1) {
+                $indexed[$matches[1]] = $value;
             }
         }
 
@@ -240,6 +245,16 @@ final class PollCiscoWlcAccessPoints extends Command
             }
         }
 
+        // LibreNMS may trim a leading newline byte (0x0A) from binary IPv4
+        // values. On this Cisco WLC those shortened three-byte values are
+        // 10.x.x.x addresses, so restore the missing first octet.
+        if (strlen($raw) === 3) {
+            $decoded = @inet_ntop("\x0A" . $raw);
+            if ($decoded !== false) {
+                return $decoded;
+            }
+        }
+
         $text = trim($value);
         if (filter_var($text, FILTER_VALIDATE_IP)) {
             return $text;
@@ -250,6 +265,7 @@ final class PollCiscoWlcAccessPoints extends Command
             $text = substr($text, 1, -1);
         }
 
+        // SnmpQuery commonly returns hexadecimal octets as "0A 64 63 1B".
         $hexText = preg_replace('/[^0-9a-f]/i', '', $text);
         if (is_string($hexText) && (strlen($hexText) === 8 || strlen($hexText) === 32)) {
             $binary = @hex2bin($hexText);
