@@ -21,9 +21,11 @@ The plugin solves a practical monitoring gap: when an AP disappears from a Cisco
 - Tracks Cisco APs learned from one or more Cisco WLC devices in LibreNMS.
 - Detects the exact AP that is online, offline, ignored, or retired.
 - Keeps historical AP records even when an AP disappears from the controller.
-- Provides a LibreNMS web page for AP state management.
+- Discovers and stores each AP's local management IP address directly from the WLC.
+- Displays connected clients, radio count, channels, maximum radio utilization, and radio MAC address.
+- Provides a searchable and sortable LibreNMS management page with a detail page for each AP.
 - Supports **Ignore**, **Retire**, **Restore**, and **Delete** actions.
-- Includes a compact dashboard widget.
+- Includes a native LibreNMS dashboard widget showing AP totals and currently down APs.
 - Includes a Nagios-compatible service check for LibreNMS Services.
 - Supports LibreNMS Alert Rules, Alert Templates, Operations, Transports, and recovery notifications.
 - Includes installation, upgrade, backup, restore, and server-migration scripts.
@@ -56,7 +58,7 @@ That output can be delivered through any LibreNMS alert transport, including ema
 - LibreNMS Services support.
 - Standard Linux utilities including Git, cron, `rsync`, and `sudo`.
 
-The project was developed and tested with LibreNMS 26.7/26.8 development builds, PHP 8.3, MariaDB 10.6, and Cisco AireOS 8.10. Other compatible versions may also work.
+The project was developed and tested with LibreNMS 26.7/26.8 development builds, including 26.8.0-dev, PHP 8.3, MariaDB 10.6, and Cisco AireOS 8.10. Other compatible versions may also work.
 
 ## Quick installation
 
@@ -73,7 +75,7 @@ The installer copies the plugin to:
 /opt/librenms/local-plugins/librenms-cisco-wlc-ap-monitor
 ```
 
-It then registers the local path repository, installs the package using LibreNMS `lnms plugin:add`, runs the migration, installs the service-check script, and enables scheduled AP polling.
+It then registers the local path repository, installs the package using LibreNMS `lnms plugin:add`, runs the migrations, installs the service-check script, and enables scheduled AP polling.
 
 Open the management page at:
 
@@ -85,7 +87,7 @@ Run a manual poll:
 
 ```bash
 cd /opt/librenms
-sudo -u librenms -H php lnms cisco-wlc-ap:poll --no-interaction
+sudo -u librenms -H ./lnms cisco-wlc-ap:poll --no-interaction
 ```
 
 Run the service check manually:
@@ -118,7 +120,9 @@ Complete alerting instructions, including an alert template example, are availab
 
 ## Dashboard widget
 
-Add a LibreNMS Notes widget containing:
+Open a LibreNMS dashboard, select **Add widget**, and add **Cisco WLC AP Monitor**. The widget displays totals for up, down, ignored, and retired APs, together with a list of currently down APs and a link to the full management page.
+
+An iframe-based Notes widget can also be used when needed:
 
 ```html
 <iframe
